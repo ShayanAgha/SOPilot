@@ -32,8 +32,15 @@ _model: SentenceTransformer | None = None
 
 def _get_model(model_name: str) -> SentenceTransformer:
     global _model
-    if _model is None or _model.get_sentence_embedding_dimension() == 0:
-        _model = SentenceTransformer(model_name)
+    if _model is None:
+        try:
+            _model = SentenceTransformer(
+                model_name,
+                device="cpu",
+                model_kwargs={"low_cpu_mem_usage": False},
+            )
+        except Exception:
+            _model = SentenceTransformer(model_name, device="cpu")
     return _model
 
 
