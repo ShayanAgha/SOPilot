@@ -1,32 +1,153 @@
 {% extends "base.html" %}
 {% block title %}SOP Library — SOPilot{% endblock %}
+{% block extra_head %}
+<style>
+.upload-zone {
+  border: 2px dashed var(--color-line);
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  background: var(--color-card);
+  margin-bottom: 24px;
+  transition: border-color 0.15s;
+}
+.upload-zone:focus-within { border-color: var(--color-ink); }
+.cat-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+.cat-filter a {
+  padding: 5px 14px; border-radius: 999px; font-size: 13px;
+  border: 1px solid var(--color-line); text-decoration: none;
+  color: var(--color-text-muted); transition: all 0.12s;
+}
+.cat-filter a:hover { border-color: var(--color-ink); color: var(--color-ink); }
+.cat-filter a.active { background: var(--color-ink); color: #fff; border-color: var(--color-ink); }
+.doc-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 1px solid var(--color-line);
+  gap: 12px;
+}
+.doc-row:last-child { border-bottom: none; }
+.doc-info strong { font-size: 14px; display: block; }
+.doc-meta { font-size: 12px; color: var(--color-text-muted); margin-top: 2px; }
+.doc-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.sp-pill[data-id] { cursor: default; }
+.progress-text { font-size: 11px; color: var(--color-text-muted); font-family: var(--font-display); }
+.row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 600px) { .row-2col { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
 {% block content %}
   <div class="sp-eyebrow">Admin</div>
-  <h1>SOP library</h1>
-  <p>Upload, categorize, and monitor ingestion of your organization's procedures. Upload flow lands in Phase 3.</p>
+  <h1>SOP Library</h1>
+  <p>Upload, categorize, and monitor ingestion of your organization's procedures.</p>
 
-  <div class="sp-nav__links" style="margin-bottom: 20px; padding: 0;">
-    <a href="{{ url_for('admin.documents') }}" class="{{ 'active' if not active_category else '' }}" style="color: var(--color-text-muted); {{ 'background: var(--color-paper); color: var(--color-ink);' if not active_category else '' }}">All</a>
+  <!-- Upload form -->
+  <div class="upload-zone">
+    <h2 style="margin-bottom: 16px; font-size: 16px;">Upload a new SOP</h2>
+    <form method="POST" action="{{ url_for('admin.upload_document') }}" enctype="multipart/form-data">
+      <div class="sp-field">
+        <label for="file-input">PDF file <span style="color:var(--color-danger)">*</span></label>
+        <input type="file" id="file-input" name="file" accept=".pdf" required
+               style="padding: 6px 8px; cursor: pointer;">
+      </div>
+      <div class="row-2col">
+        <div class="sp-field">
+          <label for="category-select">Category</label>
+          <select id="category-select" name="category">
+            {% for cat in categories %}
+              <option value="{{ cat }}">{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="sp-field">
+          <label for="dept-input">Owner department (optional)</label>
+          <input type="text" id="dept-input" name="owner_department" placeholder="e.g. Customer Success">
+        </div>
+      </div>
+      <button type="submit" class="sp-btn">Upload &amp; Ingest</button>
+    </form>
+  </div>
+
+  <!-- Category filter tabs -->
+  <div class="cat-filter">
+    <a href="{{ url_for('admin.documents') }}" class="{{ 'active' if not active_category }}">All</a>
     {% for cat in categories %}
-      <a href="{{ url_for('admin.documents', category=cat) }}" style="color: var(--color-text-muted); {{ 'background: var(--color-paper); color: var(--color-ink);' if active_category == cat else '' }}">{{ cat }}</a>
+      <a href="{{ url_for('admin.documents', category=cat) }}"
+         class="{{ 'active' if active_category == cat }}">{{ cat }}</a>
     {% endfor %}
   </div>
 
+  <!-- Document list -->
   {% if documents %}
-    <div class="sp-card" style="padding: 0;">
+    <div class="sp-card" style="padding: 0; overflow: hidden;">
       {% for doc in documents %}
-        <div style="padding: 16px 20px; border-bottom: 1px solid var(--color-line); display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <strong>{{ doc.filename }}</strong>
-            <div style="font-size: 12.5px; color: var(--color-text-muted); margin-top: 2px;">
-              {{ doc.category }} · uploaded {{ doc.uploaded_at.strftime('%Y-%m-%d') }}
+        <div class="doc-row">
+          <div class="doc-info" style="flex: 1; min-width: 0;">
+            <strong title="{{ doc.filename }}">{{ doc.filename }}</strong>
+            <div class="doc-meta">
+              {{ doc.category }}
+              {% if doc.owner_department %} · {{ doc.owner_department }}{% endif %}
+              · uploaded {{ doc.uploaded_at.strftime('%Y-%m-%d %H:%M') }}
+              {% if doc.page_count %} · {{ doc.page_count }} pages · {{ doc.chunk_count }} chunks{% endif %}
+              {% if doc.ingestion_duration_seconds %}
+                · ingested in {{ '%.1f'|format(doc.ingestion_duration_seconds) }}s
+              {% endif %}
             </div>
+            {% if doc.status == 'failed' and doc.error_message %}
+              <div style="font-size: 11.5px; color: var(--color-danger); margin-top: 4px;">
+                ⚠ {{ doc.error_message[:120] }}
+              </div>
+            {% endif %}
           </div>
-          <span class="sp-pill sp-pill--{{ doc.status }}">{{ doc.status }}</span>
+          <div class="doc-actions">
+            <span class="sp-pill sp-pill--{{ doc.status }}" id="pill-{{ doc.id }}"
+                  data-id="{{ doc.id }}" data-status="{{ doc.status }}">
+              {{ doc.status }}
+            </span>
+            <form method="POST" action="{{ url_for('admin.delete_document', doc_id=doc.id) }}"
+                  onsubmit="return confirm('Delete this SOP? This cannot be undone.');">
+              <button type="submit" class="sp-btn sp-btn--ghost"
+                      style="padding: 5px 10px; font-size: 12px;">Delete</button>
+            </form>
+          </div>
         </div>
       {% endfor %}
     </div>
   {% else %}
-    <div class="sp-empty">No SOPs uploaded yet. Upload your first procedure to get started (Phase 3).</div>
+    <div class="sp-empty">No SOPs uploaded yet. Upload your first procedure above.</div>
   {% endif %}
+
+  <!-- Live status polling for pending/processing docs -->
+  <script>
+  (function () {
+    const pills = document.querySelectorAll('[data-id][data-status]');
+    const pollingIds = [];
+    pills.forEach(p => {
+      if (p.dataset.status === 'pending' || p.dataset.status === 'processing') {
+        pollingIds.push(parseInt(p.dataset.id));
+      }
+    });
+
+    if (!pollingIds.length) return;
+
+    function poll() {
+      pollingIds.forEach(async (id) => {
+        const pill = document.getElementById('pill-' + id);
+        if (!pill) return;
+        try {
+          const res = await fetch("{{ url_for('admin.document_status', doc_id=0) }}".replace('/0/', '/' + id + '/'));
+          const data = await res.json();
+          pill.textContent = data.status;
+          pill.className = 'sp-pill sp-pill--' + data.status;
+          pill.dataset.status = data.status;
+          if (data.status === 'done' || data.status === 'failed') {
+            // Remove from polling list
+            const idx = pollingIds.indexOf(id);
+            if (idx > -1) pollingIds.splice(idx, 1);
+          }
+        } catch (_) {}
+      });
+      if (pollingIds.length) setTimeout(poll, 2500);
+    }
+    setTimeout(poll, 2500);
+  })();
+  </script>
 {% endblock %}

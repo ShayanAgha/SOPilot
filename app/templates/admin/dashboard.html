@@ -1,26 +1,159 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — SOPilot{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.stat-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-card);
+}
+.stat-card .val {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--color-ink);
+  line-height: 1.1;
+}
+.stat-card .lbl {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 5px;
+}
+.stat-card.accent-green .val { color: var(--color-verified); }
+.stat-card.accent-amber .val { color: #b07a20; }
+.charts-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin-top: 24px;
+}
+@media (max-width: 740px) { .charts-row { grid-template-columns: 1fr; } }
+.chart-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+}
+.chart-card h2 { font-size: 14px; margin-bottom: 14px; color: var(--color-ink); }
+</style>
+{% endblock %}
 {% block content %}
   <div class="sp-eyebrow">Admin</div>
-  <h1>Traffic dashboard</h1>
-  <p>Live query volume, latency, and top questions land here once the chat pipeline is wired up (Phase 5).</p>
+  <h1>Traffic Dashboard</h1>
+  <p>Live query volume, latency, and grounding metrics across all SOPs.</p>
 
-  <div class="sp-stat-grid">
-    <div class="sp-stat">
-      <div class="sp-stat__value">{{ stats.total_queries }}</div>
-      <div class="sp-stat__label">Total queries logged</div>
+  <!-- Stat cards -->
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="val">{{ stats.total_queries }}</div>
+      <div class="lbl">Total queries</div>
     </div>
-    <div class="sp-stat">
-      <div class="sp-stat__value">{{ stats.total_documents }}</div>
-      <div class="sp-stat__label">SOPs in library</div>
+    <div class="stat-card">
+      <div class="val">{{ stats.today_queries }}</div>
+      <div class="lbl">Queries today</div>
     </div>
-    <div class="sp-stat">
-      <div class="sp-stat__value">{{ stats.open_escalations }}</div>
-      <div class="sp-stat__label">Open escalations</div>
+    <div class="stat-card">
+      <div class="val">{{ stats.total_documents }}</div>
+      <div class="lbl">SOPs in library</div>
+    </div>
+    <div class="stat-card accent-green">
+      <div class="val">{{ stats.grounded_pct }}%</div>
+      <div class="lbl">Grounded answers</div>
+    </div>
+    <div class="stat-card">
+      <div class="val">{{ stats.avg_latency_ms }}</div>
+      <div class="lbl">Avg latency (ms)</div>
+    </div>
+    <div class="stat-card accent-amber">
+      <div class="val">{{ stats.open_escalations }}</div>
+      <div class="lbl">Open escalations</div>
     </div>
   </div>
 
-  <div class="sp-empty">
-    Query-per-day chart, top questions, and grounded % land here in Phase 5.
+  <!-- Charts -->
+  <div class="charts-row">
+    <div class="chart-card">
+      <h2>Queries per day (last 14 days)</h2>
+      <canvas id="queryChart" height="120"></canvas>
+    </div>
+    <div class="chart-card">
+      <h2>Escalations by category</h2>
+      <canvas id="gapChart" height="120"></canvas>
+    </div>
   </div>
+
+  <script>
+  (async function () {
+    const res = await fetch("{{ url_for('admin.dashboard_gaps') }}");
+    const data = await res.json();
+
+    const baseFont = { family: "'IBM Plex Sans', sans-serif", size: 12 };
+    Chart.defaults.font = baseFont;
+    Chart.defaults.color = '#5b6472';
+
+    // Line chart — queries per day
+    new Chart(document.getElementById('queryChart'), {
+      type: 'line',
+      data: {
+        labels: data.daily.labels,
+        datasets: [{
+          label: 'Queries',
+          data: data.daily.counts,
+          borderColor: '#14181f',
+          backgroundColor: 'rgba(20, 24, 31, 0.06)',
+          borderWidth: 2,
+          pointRadius: 3,
+          fill: true,
+          tension: 0.35,
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: '#e8eaf0' } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+
+    // Bar chart — escalations by category
+    const catLabels = data.by_category.labels;
+    const catCounts = data.by_category.counts;
+    if (catLabels.length === 0) {
+      document.getElementById('gapChart').parentElement.innerHTML +=
+        '<p style="text-align:center;color:var(--color-verified);font-size:13px;margin-top:24px;">No open escalations 🎉</p>';
+      document.getElementById('gapChart').style.display = 'none';
+    } else {
+      new Chart(document.getElementById('gapChart'), {
+        type: 'bar',
+        data: {
+          labels: catLabels,
+          datasets: [{
+            label: 'Escalations',
+            data: catCounts,
+            backgroundColor: '#c08a2e',
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: '#e8eaf0' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+  })();
+  </script>
 {% endblock %}
