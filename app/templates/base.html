@@ -18,8 +18,9 @@
     {% if current_user.is_authenticated %}
     <div class="sp-nav__links">
       {% if current_user.is_admin %}
-        <a href="{{ url_for('admin.dashboard') }}" class="{{ 'active' if request.blueprint == 'admin' else '' }}">Dashboard</a>
+        <a href="{{ url_for('admin.dashboard') }}" class="{{ 'active' if request.blueprint == 'admin' and request.endpoint == 'admin.dashboard' else '' }}">Dashboard</a>
         <a href="{{ url_for('admin.documents') }}" class="{{ 'active' if request.endpoint == 'admin.documents' else '' }}">SOP Library</a>
+        <a href="{{ url_for('admin.logs') }}" class="{{ 'active' if request.endpoint == 'admin.logs' else '' }}">Query Log</a>
         <a href="{{ url_for('admin.escalations') }}" class="{{ 'active' if request.endpoint == 'admin.escalations' else '' }}">Escalations</a>
       {% endif %}
       <a href="{{ url_for('chat.chat_ui') }}" class="{{ 'active' if request.blueprint == 'chat' else '' }}">Ask SOPilot</a>

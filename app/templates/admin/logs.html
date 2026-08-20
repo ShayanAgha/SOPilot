@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Query Log — SOPilot{% endblock %}
+{% block extra_head %}
+<style>
+.log-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.log-table th {
+  text-align: left; padding: 10px 12px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--color-text-muted);
+  border-bottom: 2px solid var(--color-line);
+  background: var(--color-paper);
+}
+.log-table td {
+  padding: 10px 12px; border-bottom: 1px solid var(--color-line);
+  vertical-align: top; color: var(--color-text);
+}
+.log-table tr:last-child td { border-bottom: none; }
+.log-table tr:hover td { background: #f7f8fa; }
+.q-cell { max-width: 340px; font-weight: 500; }
+.a-cell { max-width: 300px; color: var(--color-text-muted); font-size: 12.5px; }
+.truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.search-bar { display: flex; gap: 8px; margin-bottom: 20px; }
+.search-bar input {
+  flex: 1; padding: 9px 12px;
+  border: 1px solid var(--color-line); border-radius: var(--radius);
+  font-size: 14px; font-family: var(--font-body);
+}
+.search-bar input:focus { outline: 2px solid var(--color-ink); border-color: var(--color-ink); }
+.pagination { display: flex; gap: 4px; margin-top: 20px; justify-content: center; }
+.pagination a, .pagination span {
+  padding: 5px 11px; border-radius: var(--radius);
+  border: 1px solid var(--color-line);
+  font-size: 13px; text-decoration: none; color: var(--color-text);
+}
+.pagination a:hover { background: var(--color-paper); }
+.pagination .current { background: var(--color-ink); color: #fff; border-color: var(--color-ink); }
+.score-bar {
+  display: inline-block; height: 5px; border-radius: 3px;
+  background: var(--color-verified); vertical-align: middle; margin-right: 5px;
+}
+</style>
+{% endblock %}
+{% block content %}
+  <div class="sp-eyebrow">Admin</div>
+  <h1>Query Log</h1>
+  <p>Every question asked in the chat interface, with its answer, confidence score, and timestamp.</p>
+
+  <!-- Search -->
+  <form class="search-bar" method="GET" action="{{ url_for('admin.logs') }}">
+    <input type="text" name="q" value="{{ search }}" placeholder="Search questions…" id="log-search">
+    <button type="submit" class="sp-btn">Search</button>
+    {% if search %}
+      <a href="{{ url_for('admin.logs') }}" class="sp-btn sp-btn--ghost">Clear</a>
+    {% endif %}
+  </form>
+
+  {% if logs %}
+    <div class="sp-card" style="padding: 0; overflow: hidden;">
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Question</th>
+            <th>Answer</th>
+            <th>Score</th>
+            <th>Grounded</th>
+            <th>Latency</th>
+            <th>Asked</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td style="color: var(--color-text-muted); font-family: var(--font-display); font-size: 12px;">
+              {{ log.id }}
+            </td>
+            <td class="q-cell">
+              <span class="truncate" title="{{ log.question }}" style="max-width: 320px;">
+                {{ log.question }}
+              </span>
+            </td>
+            <td class="a-cell">
+              <span class="truncate" title="{{ log.answer }}" style="max-width: 280px;">
+                {{ log.answer[:120] }}{% if log.answer|length > 120 %}…{% endif %}
+              </span>
+            </td>
+            <td style="white-space: nowrap;">
+              {% if log.top_score %}
+                <span class="score-bar" style="width: {{ (log.top_score * 60)|int }}px;"></span>
+                <span style="font-family: var(--font-display); font-size: 11.5px;">
+                  {{ '%.3f'|format(log.top_score) }}
+                </span>
+              {% else %}
+                <span style="color: var(--color-text-muted);">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if log.was_grounded %}
+                <span class="sp-pill sp-pill--done">yes</span>
+              {% else %}
+                <span class="sp-pill sp-pill--processing">no</span>
+              {% endif %}
+            </td>
+            <td style="font-family: var(--font-display); font-size: 12px; white-space: nowrap;">
+              {{ log.latency_ms }} ms
+            </td>
+            <td style="font-size: 12px; color: var(--color-text-muted); white-space: nowrap;">
+              {{ log.created_at.strftime('%Y-%m-%d %H:%M') }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if pagination.pages > 1 %}
+    <div class="pagination">
+      {% if pagination.has_prev %}
+        <a href="{{ url_for('admin.logs', page=pagination.prev_num, q=search) }}">← Prev</a>
+      {% endif %}
+      {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if page_num %}
+          {% if page_num == pagination.page %}
+            <span class="current">{{ page_num }}</span>
+          {% else %}
+            <a href="{{ url_for('admin.logs', page=page_num, q=search) }}">{{ page_num }}</a>
+          {% endif %}
+        {% else %}
+          <span>…</span>
+        {% endif %}
+      {% endfor %}
+      {% if pagination.has_next %}
+        <a href="{{ url_for('admin.logs', page=pagination.next_num, q=search) }}">Next →</a>
+      {% endif %}
+    </div>
+    <p style="text-align:center; font-size:12px; color: var(--color-text-muted); margin-top: 10px;">
+      Showing {{ logs|length }} of {{ pagination.total }} entries
+    </p>
+    {% endif %}
+
+  {% else %}
+    <div class="sp-empty">
+      {% if search %}No queries matching "{{ search }}".{% else %}No queries logged yet.{% endif %}
+    </div>
+  {% endif %}
+{% endblock %}

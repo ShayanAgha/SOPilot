@@ -92,6 +92,28 @@
     </div>
   </div>
 
+  <!-- Top 10 questions -->
+  {% if top_questions %}
+  <div style="margin-top: 24px;">
+    <h2 style="font-size: 15px; margin-bottom: 12px;">Top 10 most-asked questions</h2>
+    <div class="sp-card" style="padding: 0; overflow: hidden;">
+      {% for question, cnt in top_questions %}
+      <div style="display: flex; align-items: center; justify-content: space-between;
+                  padding: 10px 18px; border-bottom: 1px solid var(--color-line);">
+        <div style="font-size: 13.5px; color: var(--color-text); flex: 1; min-width: 0;
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                    padding-right: 16px;" title="{{ question }}">{{ question }}</div>
+        <span style="font-family: var(--font-display); font-size: 12px;
+                     color: var(--color-text-muted); flex-shrink: 0;">× {{ cnt }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="text-align: right; margin-top: 8px;">
+      <a href="{{ url_for('admin.logs') }}" style="font-size: 13px; color: var(--color-text-muted);">View full log →</a>
+    </div>
+  </div>
+  {% endif %}
+
   <script>
   (async function () {
     const res = await fetch("{{ url_for('admin.dashboard_gaps') }}");

@@ -47,6 +47,15 @@ def dashboard():
     grounded_count = QueryLog.query.filter_by(was_grounded=True).count()
     grounded_pct = round((grounded_count / total_queries * 100) if total_queries else 0)
 
+    # Top 10 most-asked questions (by exact question text frequency)
+    top_questions = (
+        db.session.query(QueryLog.question, func.count(QueryLog.id).label("cnt"))
+        .group_by(QueryLog.question)
+        .order_by(func.count(QueryLog.id).desc())
+        .limit(10)
+        .all()
+    )
+
     stats = {
         "total_queries": total_queries,
         "today_queries": today_queries,
@@ -55,7 +64,35 @@ def dashboard():
         "avg_latency_ms": avg_latency,
         "grounded_pct": grounded_pct,
     }
-    return render_template("admin/dashboard.html", stats=stats)
+    return render_template("admin/dashboard.html", stats=stats, top_questions=top_questions)
+
+
+# ---------------------------------------------------------------------------
+# Query log viewer
+# ---------------------------------------------------------------------------
+
+@admin_bp.route("/logs")
+@admin_required
+def logs():
+    """
+    Paginated, searchable table of every QueryLog row.
+    Satisfies §3.2 'Query log viewer' requirement.
+    """
+    page = request.args.get("page", 1, type=int)
+    q = request.args.get("q", "").strip()
+    per_page = current_app.config.get("LOGS_PER_PAGE", 25)
+
+    query = QueryLog.query.order_by(QueryLog.created_at.desc())
+    if q:
+        query = query.filter(QueryLog.question.ilike(f"%{q}%"))
+
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    return render_template(
+        "admin/logs.html",
+        logs=pagination.items,
+        pagination=pagination,
+        search=q,
+    )
 
 
 @admin_bp.route("/dashboard/gaps")
