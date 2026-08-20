@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}SOP Library — SOPilot{% endblock %}
+{% block content %}
+  <div class="sp-eyebrow">Admin</div>
+  <h1>SOP library</h1>
+  <p>Upload, categorize, and monitor ingestion of your organization's procedures. Upload flow lands in Phase 3.</p>
+
+  <div class="sp-nav__links" style="margin-bottom: 20px; padding: 0;">
+    <a href="{{ url_for('admin.documents') }}" class="{{ 'active' if not active_category else '' }}" style="color: var(--color-text-muted); {{ 'background: var(--color-paper); color: var(--color-ink);' if not active_category else '' }}">All</a>
+    {% for cat in categories %}
+      <a href="{{ url_for('admin.documents', category=cat) }}" style="color: var(--color-text-muted); {{ 'background: var(--color-paper); color: var(--color-ink);' if active_category == cat else '' }}">{{ cat }}</a>
+    {% endfor %}
+  </div>
+
+  {% if documents %}
+    <div class="sp-card" style="padding: 0;">
+      {% for doc in documents %}
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--color-line); display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <strong>{{ doc.filename }}</strong>
+            <div style="font-size: 12.5px; color: var(--color-text-muted); margin-top: 2px;">
+              {{ doc.category }} · uploaded {{ doc.uploaded_at.strftime('%Y-%m-%d') }}
+            </div>
+          </div>
+          <span class="sp-pill sp-pill--{{ doc.status }}">{{ doc.status }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="sp-empty">No SOPs uploaded yet. Upload your first procedure to get started (Phase 3).</div>
+  {% endif %}
+{% endblock %}

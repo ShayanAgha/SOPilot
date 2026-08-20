@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Ask SOPilot{% endblock %}
+{% block content %}
+  <div class="sp-eyebrow">Ask SOPilot</div>
+  <h1>What do you need to know?</h1>
+  <p>Answers are grounded strictly in your organization's uploaded procedures — cited, or refused, never guessed.</p>
+
+  <div class="sp-card">
+    <div id="sp-chat-log" style="min-height: 160px; margin-bottom: 16px; color: var(--color-text-muted); font-size: 14px;">
+      Ask a question below to get started. (Grounded retrieval wires up in Phase 4 — this currently returns a placeholder.)
+    </div>
+    <form id="sp-chat-form" style="display: flex; gap: 8px;">
+      <input type="text" id="sp-question" placeholder="e.g. What's the process for a customer refund after 45 days?"
+        style="flex: 1; padding: 10px 12px; border: 1px solid var(--color-line); border-radius: 6px; font-size: 14px;">
+      <button type="submit" class="sp-btn">Ask</button>
+    </form>
+  </div>
+
+  <script>
+    document.getElementById('sp-chat-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = document.getElementById('sp-question');
+      const log = document.getElementById('sp-chat-log');
+      const question = input.value.trim();
+      if (!question) return;
+
+      log.textContent = 'Thinking…';
+      const res = await fetch("{{ url_for('chat.ask') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question })
+      });
+      const data = await res.json();
+      log.textContent = data.answer || data.error || 'No response.';
+      input.value = '';
+    });
+  </script>
+{% endblock %}

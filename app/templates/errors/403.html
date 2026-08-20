@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Not authorized — SOPilot{% endblock %}
+{% block shell_modifier %}sp-shell--narrow{% endblock %}
+{% block content %}
+  <div class="sp-eyebrow">403</div>
+  <h1>Not authorized</h1>
+  <p>This area is restricted to SOPilot admins. If you need access, contact whoever manages your organization's procedure library.</p>
+  <a href="{{ url_for('chat.chat_ui') }}" class="sp-btn">Back to Ask SOPilot</a>
+{% endblock %}

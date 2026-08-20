@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Not found — SOPilot{% endblock %}
+{% block shell_modifier %}sp-shell--narrow{% endblock %}
+{% block content %}
+  <div class="sp-eyebrow">404</div>
+  <h1>Page not found</h1>
+  <p>That page doesn't exist. Double-check the link, or head back to a safe spot.</p>
+  <a href="{{ url_for('index') if current_user.is_authenticated else url_for('auth.login') }}" class="sp-btn">Take me back</a>
+{% endblock %}

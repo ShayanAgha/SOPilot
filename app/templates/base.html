@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}SOPilot{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;650&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <nav class="sp-nav">
+    <a href="{{ url_for('index') if current_user.is_authenticated else url_for('auth.login') }}" class="sp-nav__brand">
+      <span class="dot"></span>SOPilot
+    </a>
+    {% if current_user.is_authenticated %}
+    <div class="sp-nav__links">
+      {% if current_user.is_admin %}
+        <a href="{{ url_for('admin.dashboard') }}" class="{{ 'active' if request.blueprint == 'admin' else '' }}">Dashboard</a>
+        <a href="{{ url_for('admin.documents') }}" class="{{ 'active' if request.endpoint == 'admin.documents' else '' }}">SOP Library</a>
+        <a href="{{ url_for('admin.escalations') }}" class="{{ 'active' if request.endpoint == 'admin.escalations' else '' }}">Escalations</a>
+      {% endif %}
+      <a href="{{ url_for('chat.chat_ui') }}" class="{{ 'active' if request.blueprint == 'chat' else '' }}">Ask SOPilot</a>
+      <span class="sp-nav__role">{{ current_user.role }}</span>
+      <a href="{{ url_for('auth.logout') }}">Log out</a>
+    </div>
+    {% endif %}
+  </nav>
+
+  <div class="sp-shell {% block shell_modifier %}{% endblock %}">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="sp-flash sp-flash--{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>
