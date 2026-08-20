@@ -125,6 +125,81 @@
 
 /* Latency label */
 .latency { font-size: 11px; color: var(--color-text-muted); margin-top: 4px; font-family: var(--font-display); }
+
+/* ---- Answer content styles ---- */
+.ans-p {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+.ans-p:first-child { margin-top: 0; }
+.ans-p:last-child  { margin-bottom: 0; }
+
+/* Numbered step list */
+ol.ans-steps {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+ol.ans-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.55;
+}
+.step-num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  background: var(--color-ink);
+  color: #fff;
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.step-body {
+  flex: 1;
+}
+.step-body strong {
+  color: var(--color-ink);
+}
+
+/* Inline code */
+.ans-code {
+  font-family: var(--font-display);
+  font-size: 12px;
+  background: rgba(20,24,31,0.07);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--color-ink);
+}
+
+/* Source chips inside answer body */
+.ans-sources-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-line);
+}
+.ans-source-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--color-verified-bg);
+  color: var(--color-verified);
+  border: 1px solid rgba(47,110,79,0.2);
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
 </style>
 {% endblock %}
 {% block content %}
@@ -264,28 +339,73 @@
 
   function formatAnswer(text) {
     if (!text) return '';
-    // Simple numbered list detection: lines starting with "1. 2. 3."
-    const lines = text.split('\n');
-    const listLines = lines.filter(l => /^\d+\.\s/.test(l.trim()));
-    if (listLines.length >= 2) {
-      // Render as <ol>
-      let inList = false;
-      let html = '';
+
+    // Split into paragraphs on blank lines first
+    const blocks = text.split(/\n{2,}/);
+    let html = '';
+
+    blocks.forEach(block => {
+      const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+      if (!lines.length) return;
+
+      // Detect a numbered-step block: majority of lines start with "N."
+      const stepLines = lines.filter(l => /^\d+\.\s/.test(l));
+      if (stepLines.length >= 2 && stepLines.length >= lines.length * 0.5) {
+        html += '<ol class="ans-steps">';
+        lines.forEach(line => {
+          const stepMatch = line.match(/^(\d+)\.\s+(.*)/s);
+          if (stepMatch) {
+            const num = stepMatch[1];
+            const body = inlineMarkdown(stepMatch[2]);
+            html += `<li><span class="step-num">${num}</span><span class="step-body">${body}</span></li>`;
+          } else {
+            // non-step line inside a step block — treat as continuation paragraph
+            html += `</ol><p class="ans-p">${inlineMarkdown(line)}</p><ol class="ans-steps">`;
+          }
+        });
+        html += '</ol>';
+        return;
+      }
+
+      // Detect a "Source:" attribution line → render as chip row
+      if (lines.every(l => /^source:/i.test(l))) {
+        const chips = lines.map(l => {
+          const src = l.replace(/^source:\s*/i, '');
+          return `<span class="ans-source-chip">${inlineMarkdown(src)}</span>`;
+        }).join('');
+        html += `<div class="ans-sources-row">${chips}</div>`;
+        return;
+      }
+
+      // Plain paragraph(s)
       lines.forEach(line => {
-        const trimmed = line.trim();
-        if (/^\d+\.\s/.test(trimmed)) {
-          if (!inList) { html += '<ol>'; inList = true; }
-          html += `<li>${esc(trimmed.replace(/^\d+\.\s/, ''))}</li>`;
+        if (/^source:/i.test(line)) {
+          const src = line.replace(/^source:\s*/i, '');
+          html += `<div class="ans-sources-row"><span class="ans-source-chip">${inlineMarkdown(src)}</span></div>`;
         } else {
-          if (inList) { html += '</ol>'; inList = false; }
-          if (trimmed) html += `<p style="margin:6px 0">${esc(trimmed)}</p>`;
+          html += `<p class="ans-p">${inlineMarkdown(line)}</p>`;
         }
       });
-      if (inList) html += '</ol>';
-      return html;
-    }
-    // Plain text
-    return esc(text);
+    });
+
+    return html;
+  }
+
+  // Converts inline markdown: **bold**, *italic*, `code` to HTML.
+  // Runs AFTER html-escaping to stay XSS-safe.
+  function inlineMarkdown(text) {
+    let s = esc(text);
+    // **bold** or __bold__
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
+    // *italic* or _italic_
+    s = s.replace(/\*([^*]+?)\*/g, '<em>$1</em>');
+    s = s.replace(/_([^_]+?)_/g, '<em>$1</em>');
+    // `code`
+    s = s.replace(/`([^`]+?)`/g, '<code class="ans-code">$1</code>');
+    // em-dash surrounded by spaces
+    s = s.replace(/\s—\s/g, ' <span style="color:var(--color-text-muted)">—</span> ');
+    return s;
   }
 
   function esc(s) {
